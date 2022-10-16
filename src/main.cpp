@@ -57,28 +57,27 @@ void DeserializeJson(String json)
 void setup()
 {
   Serial.begin(115200);
-  // WiFi.begin("LAN_957428", "coronavirus7/");
-  // timeClient.begin();
+  WiFi.begin("LAN_957428", "coronavirus7/");
+  timeClient.begin();
 
   Serial.print("Conectado");
-  // Serial.print("Conectando al WIFI");
-  // delay(1000);
-  // while (WiFi.status() != WL_CONNECTED)
-  // {
-  //   delay(1000);
-  //   Serial.print(".");
-  // }
-  // Serial.println();
-
-  // Serial.print("Conectado, dirección IP: ");
-  // Serial.println(WiFi.localIP());
-
-  // Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
+  delay(1000);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print(".");
+  }
+  delay(3000);
+  Serial.print("IP: ");
+  Serial.print(WiFi.localIP());
+  Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   delay(5000);
 }
 
 void loop()
 {
+  WiFiClient client;
+
   if (conect == false)
   {
     Serial.print("conectado");
@@ -101,17 +100,84 @@ void loop()
       if (error.c_str() == "Ok")
       {
         Serial.print("ok al deserealizar");
-        int temp = doc["temp"];
-        int hum = doc["hum"];
+        float temp = doc["temp"];
+        float hum = doc["hum"];
         delay(3000);
         Serial.print(temp);
         delay(3000);
         Serial.print(hum);
         delay(3000);
+        // Serial.print(WiFi.localIP());
+        delay(3000);
+
+        Serial.print("Obteniendo datos de Firebase...");
+
+        // Filtro de consulta
+        QueryFilter query;
+        query.orderBy("fecha");
+        // query.limitToFirst(2);
+        query.limitToLast(2);
+
+        if (Firebase.RTDB.getJSON(&fbdo, "/tierra/humedad", &query))
+        {
+
+          FirebaseJson &json = fbdo.jsonObject();
+          size_t len = json.iteratorBegin();
+          String key, value = "";
+          int type = 0;
+          StaticJsonDocument<300> new_array;
+
+          // itera el json
+          for (size_t i = 0; i < len; i++)
+          {
+            json.iteratorGet(i, type, key, value);
+            bool is_int = value.toInt();
+            if (!is_int)
+            {
+              // almacena en un array
+              new_array.add(value);
+            }
+          }
+          json.iteratorEnd();
+          json.clear();
+          String data_array;
+          serializeJson(new_array, data_array);
+          // Serial.print(data_array);
+
+          epoch_time_actual = getTime();
+
+          Serial.printf("Fecha y hora actual: %d/%d/%d | %d:%d:%d", day(epoch_time_actual), month(epoch_time_actual), year(epoch_time_actual), hour(epoch_time_actual), minute(epoch_time_actual), second(epoch_time_actual));
+
+          // des json del array
+          String data_doc = new_array[0];
+          // Serial.print(data_doc);
+          DeserializeJson(data_doc);
+          int fecha_hora = json_des["fecha"];
+          float valor = json_des["valor"];
+          Serial.print(fecha_hora);
+          delay(3000);
+          Serial.print(valor);
+          delay(3000);
+          // Serial.printf("Timestamp:  %d/%d/%d  %d:%d:%d", day(epoch_time), month(epoch_time), year(epoch_time), hour(epoch_time), minute(epoch_time), second(epoch_time));
+          Serial.print("--------------------");
+          delay(3000);
+        }
+        else
+        {
+          Serial.print("Hay un error :c");
+          delay(3000);
+          Serial.print(fbdo.errorReason());
+          delay(3000);
+        }
+
+        // limpia todos los parametros de consulta
+        query.clear();
+        delay(8000);
       }
       else
       {
         Serial.print("Error al parsear");
+        delay(3000);
       }
       Serial.flush();
     }
@@ -120,78 +186,4 @@ void loop()
   {
     Serial.print("data");
   }
-
-  // WiFiClient client;
-  // Serial.println("");
-  // Serial.print("IP: ");
-  // Serial.println(WiFi.localIP());
-  // Serial.println("Obteniendo datos de Firebase...");
-
-  // // Obtiene datos sensores
-  // float temperatura = 0;
-  // int humedad = 0;
-
-  // // Filtro de consulta
-  // QueryFilter query;
-  // query.orderBy("fecha");
-  // // query.limitToFirst(2);
-  // query.limitToLast(2);
-
-  // if (Firebase.RTDB.getJSON(&fbdo, "/tierra/humedad", &query))
-  // {
-
-  //   FirebaseJson &json = fbdo.jsonObject();
-  //   size_t len = json.iteratorBegin();
-  //   String key, value = "";
-  //   int type = 0;
-  //   StaticJsonDocument<300> new_array;
-
-  //   // itera el json
-  //   for (size_t i = 0; i < len; i++)
-  //   {
-  //     json.iteratorGet(i, type, key, value);
-  //     bool is_int = value.toInt();
-  //     if (!is_int)
-  //     {
-  //       // almacena en un array
-  //       new_array.add(value);
-  //     }
-  //   }
-  //   json.iteratorEnd();
-  //   json.clear();
-  //   String data_array;
-  //   serializeJson(new_array, data_array);
-  //   // Serial.println(data_array);
-
-  //   epoch_time_actual = getTime();
-
-  //   Serial.println("--------------------");
-  //   Serial.printf("Fecha y hora actual: %d/%d/%d | %d:%d:%d", day(epoch_time_actual), month(epoch_time_actual), year(epoch_time_actual), hour(epoch_time_actual), minute(epoch_time_actual), second(epoch_time_actual));
-  //   Serial.println("-");
-  //   Serial.println("-");
-  //   Serial.println("-");
-  //   Serial.println("-");
-
-  //   // des json del array
-  //   String data_doc = new_array[0];
-  //   Serial.println(data_doc);
-  //   DeserializeJson(data_doc);
-  //   int fecha_hora = json_des["fecha"];
-  //   Serial.println(fecha_hora);
-
-  //   Serial.println("-");
-  //   Serial.println("-");
-  //   Serial.println("-");
-  //   // Serial.printf("Timestamp:  %d/%d/%d  %d:%d:%d", day(epoch_time), month(epoch_time), year(epoch_time), hour(epoch_time), minute(epoch_time), second(epoch_time));
-  //   Serial.println("--------------------");
-  // }
-  // else
-  // {
-  //   Serial.println("Hay un error :c");
-  //   Serial.println(fbdo.errorReason());
-  // }
-
-  // // limpia todos los parametros de consulta
-  // query.clear();
-  // delay(5000);
 }
