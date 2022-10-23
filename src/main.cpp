@@ -145,14 +145,17 @@ void loop()
         if (tipo_error == "Ok")
         {
           Serial.print("Ok al deserealizar datos sensores");
-          float temp = doc["temp"];
+          int temp = doc["temp"];
           int hum = doc["hum"];
           doc.clear();
 
           Serial.print("Obteniendo datos de Firebase...");
           String dts_humedad = GetDatosFirebase("/tierra/humedad");
-          int fecha_hum = 0;
+          String dts_temp = GetDatosFirebase("/tierra/temperatura");
+          // Serial.print(dts_temp);
+          // int fecha_hum = 0;
           int valor_hum = 0;
+          int valor_temp = 0;
           FirebaseJson dato_enviar;
           epoch_time_actual = getTime();
           if (dts_humedad != "")
@@ -162,8 +165,9 @@ void loop()
             if (tipo_error2 == "Ok")
             {
               // Serial.print("Ok al deserealizar dts");
-              fecha_hum = doc["fecha"];
+              // fecha_hum = doc["fecha"];
               valor_hum = doc["valor"];
+              doc.clear();
               Serial.print("Humedad desde Firebase: ");
               Serial.print(valor_hum);
               Serial.print("Humedad desde Sensor: ");
@@ -183,14 +187,33 @@ void loop()
             }
           }
 
-          // Serial.print(dts_humedad);
-          String dts_temp = GetDatosFirebase("/tierra/temperatura");
-          Serial.print(dts_temp);
-
-          // dato_enviar.set("fecha", epoch_time_actual);
-          // dato_enviar.set("valor", temp);
-          // RegistrarDatosFirebase("/tierra/temperatura", dato_enviar);
-          // dato_enviar.clear();
+          if (dts_temp != "")
+          {
+            DeserializationError error_json = deserializeJson(doc, dts_temp);
+            String tipo_error2 = error_json.c_str();
+            if (tipo_error2 == "Ok")
+            {
+              // Serial.print("Ok al deserealizar dts");
+              valor_temp = doc["valor"];
+              doc.clear();
+              Serial.print("Temperatura desde Firebase: ");
+              Serial.print(valor_temp);
+              Serial.print("Temperatura desde Sensor: ");
+              Serial.print(temp);
+              if (valor_temp != temp)
+              {
+                // Serial.print("Se procede a registrar");
+                dato_enviar.set("fecha", epoch_time_actual);
+                dato_enviar.set("valor", temp);
+                RegistrarDatosFirebase("/tierra/temperatura", dato_enviar);
+                dato_enviar.clear();
+              }
+              else
+              {
+                Serial.print("Valores iguales");
+              }
+            }
+          }
         }
         else
         {
