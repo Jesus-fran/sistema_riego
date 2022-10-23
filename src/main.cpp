@@ -1,5 +1,4 @@
 #include <Arduino.h>
-#include <SoftwareSerial.h>
 #include "FirebaseESP8266.h"
 #include <ESP8266WiFi.h>
 #include <ArduinoJson.h>
@@ -9,21 +8,16 @@
 
 #define FIREBASE_HOST "sistemariego-70eeb-default-rtdb.firebaseio.com"
 #define FIREBASE_AUTH "ON93C4yS1xwu15iFbUgiYlfE7XLw89XoVZIyPi9d"
-String path = "/tierra";
 
 FirebaseData fbdo_hum;
-FirebaseData fbdo_temp;
 
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000);
 
-int epoch_time;
 int epoch_time_actual;
-int fecha_hora_hum;
-float valor_humedad;
-int fecha_hora_temp;
-float valor_temp;
 bool conect = false;
+unsigned long interval = 3000;
+unsigned long previous_milis;
 
 // Obtiene la fecha y hora
 unsigned long getTime()
@@ -33,47 +27,35 @@ unsigned long getTime()
   return now;
 }
 
-// des un array
-StaticJsonDocument<300> array_des;
-void DeserializeArray(String array)
+void RegistrarDatosFirebase(FirebaseJson humedad)
 {
-  DeserializationError error = deserializeJson(array_des, array);
-  if (error)
+  if (Firebase.pushJSON(fbdo_hum, "tierra/humedad", humedad))
   {
-    return;
+    Serial.print("Humedad registrada");
+  }
+  else
+  {
+    Serial.print("Error al registrar humedad");
   }
 }
 
-StaticJsonDocument<300> json_des;
-
-// des un json
-void DeserializeJson(String json)
+String GetDatosFirebase(String path)
 {
-  json_des.clear();
-  DeserializationError error = deserializeJson(json_des, json);
-  if (error)
-  {
-    return;
-  }
-}
-
-void GetHumedadFirebase()
-{
-
   // Filtro de consulta
   QueryFilter query;
   query.orderBy("fecha");
   // query.limitToFirst(2);
-  query.limitToLast(2);
+  query.limitToLast(1);
 
-  if (Firebase.RTDB.getJSON(&fbdo_hum, "/tierra/humedad", &query))
+  if (Firebase.RTDB.getJSON(&fbdo_hum, path, &query))
   {
-
+    Serial.print("Se mete al IF");
     FirebaseJson &json = fbdo_hum.jsonObject();
+    // Serial.print(fbdo_hum.stringData());
     size_t len = json.iteratorBegin();
     String key, value = "";
     int type = 0;
-    StaticJsonDocument<300> new_array;
+    DynamicJsonDocument new_array(1024);
 
     // itera el json
     for (size_t i = 0; i < len; i++)
@@ -88,104 +70,32 @@ void GetHumedadFirebase()
     }
     json.iteratorEnd();
     json.clear();
-    String data_array;
-    serializeJson(new_array, data_array);
-    // Serial.print(data_array);
-
-    epoch_time_actual = getTime();
-
-    Serial.printf("Fecha y hora actual: %d/%d/%d | %d:%d:%d", day(epoch_time_actual), month(epoch_time_actual), year(epoch_time_actual), hour(epoch_time_actual), minute(epoch_time_actual), second(epoch_time_actual));
-
-    // des json del array
-    String data_doc = new_array[0];
-    // Serial.print(data_doc);
-    DeserializeJson(data_doc);
-    fecha_hora_hum = json_des["fecha"];
-    valor_humedad = json_des["valor"];
-    Serial.print("-");
-    delay(3000);
-    Serial.print(fecha_hora_hum);
-    delay(3000);
-    Serial.print(valor_humedad);
-    delay(3000);
-    // Serial.printf("Timestamp:  %d/%d/%d  %d:%d:%d", day(epoch_time), month(epoch_time), year(epoch_time), hour(epoch_time), minute(epoch_time), second(epoch_time));
-    Serial.print("--------------------");
-    delay(3000);
+    // Serializa array
+    String arr_serialized;
+    serializeJson(new_array, arr_serialized);
+    Serial.print(arr_serialized);
+    new_array.clear();
+    DeserializationError error_des = deserializeJson(new_array, arr_serialized);
+    if (error_des)
+    {
+      Serial.print("Hay un error: ");
+      Serial.print(error_des.c_str());
+    }
+    Serial.print(error_des.c_str());
+    String dts_json = new_array[0];
+    new_array.clear();
+    return dts_json;
   }
   else
   {
-    Serial.print("Hay un error hum :c");
+    Serial.print("Hay un error getJSON Firebase:c");
     delay(3000);
     Serial.print(fbdo_hum.errorReason());
-    delay(3000);
+    return "";
   }
   // limpia todos los parametros de consulta
   query.clear();
 }
-
-
-void GetTempFirebase()
-{
-
-  // Filtro de consulta
-  QueryFilter query;
-  query.orderBy("fecha");
-  // query.limitToFirst(2);
-  query.limitToLast(2);
-
-  if (Firebase.RTDB.getJSON(&fbdo_temp, "/tierra/temperatura", &query))
-  {
-
-    FirebaseJson &json_temp = fbdo_temp.jsonObject();
-    size_t len = json_temp.iteratorBegin();
-    String key, value = "";
-    int type = 0;
-    StaticJsonDocument<300> new_array_temp;
-
-    // itera el json
-    for (size_t i = 0; i < len; i++)
-    {
-      json_temp.iteratorGet(i, type, key, value);
-      bool is_int = value.toInt();
-      if (!is_int)
-      {
-        // almacena en un array
-        new_array_temp.add(value);
-      }
-    }
-    json_temp.iteratorEnd();
-    json_temp.clear();
-    String data_array;
-    serializeJson(new_array_temp, data_array);
-    // Serial.print(data_array);
-
-    // des json del array
-    String data_doc = new_array_temp[0];
-    // Serial.print(data_doc);
-    DeserializeJson(data_doc);
-    fecha_hora_temp = json_des["fecha"];
-    valor_temp = json_des["valor"];
-    Serial.print("-");
-    delay(3000);
-    Serial.print(fecha_hora_temp);
-    delay(3000);
-    Serial.print(valor_temp);
-    delay(3000);
-    // Serial.printf("Timestamp:  %d/%d/%d  %d:%d:%d", day(epoch_time), month(epoch_time), year(epoch_time), hour(epoch_time), minute(epoch_time), second(epoch_time));
-    Serial.print("--------------------");
-    delay(3000);
-  }
-  else
-  {
-    Serial.print("Hay un error temp :c");
-    delay(3000);
-    Serial.print(fbdo_temp.errorReason());
-    delay(3000);
-  }
-  // limpia todos los parametros de consulta
-  query.clear();
-}
-
 
 void setup()
 {
@@ -204,61 +114,65 @@ void setup()
   Serial.print("IP: ");
   Serial.print(WiFi.localIP());
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
-  delay(5000);
+  previous_milis = millis();
 }
 
 void loop()
 {
   WiFiClient client;
+  unsigned long current_millis = millis();
+  if ((unsigned long)(current_millis - previous_milis) >= interval)
+  {
 
-  if (conect == false)
-  {
-    Serial.print("conectado");
-  }
-  delay(5000);
-  if (Serial.available() > 0)
-  {
-    String data = Serial.readStringUntil('\n');
-    Serial.flush();
-    if (data == "como estas")
+    if (conect == false)
     {
-      conect = true;
-      Serial.print("bien");
-      delay(3000);
+      Serial.print("conectado");
     }
-    else if (data.indexOf("temp") != -1)
+    if (Serial.available() > 0)
     {
-      StaticJsonDocument<300> doc;
-      DeserializationError error = deserializeJson(doc, data);
-      if (error.c_str() == "Ok")
-      {
-        Serial.print("ok al deserealizar");
-        float temp = doc["temp"];
-        float hum = doc["hum"];
-        delay(3000);
-        Serial.print(temp);
-        delay(3000);
-        Serial.print(hum);
-        delay(3000);
-        // Serial.print(WiFi.localIP());
-        delay(3000);
-
-        Serial.print("Obteniendo datos de Firebase...");
-        GetHumedadFirebase();
-        delay(3000);
-        GetTempFirebase();
-        delay(8000);
-      }
-      else
-      {
-        Serial.print("Error al parsear");
-        delay(3000);
-      }
+      String data = Serial.readStringUntil('\n');
       Serial.flush();
+      if (data == "como estas")
+      {
+        conect = true;
+        Serial.print("bien");
+      }
+      else if (data.indexOf("temp") != -1 && conect == true)
+      {
+        StaticJsonDocument<300> doc;
+        DeserializationError error = deserializeJson(doc, data);
+        String tipo_error = error.c_str();
+        if (tipo_error == "Ok")
+        {
+          Serial.print("ok al deserealizar");
+          float temp = doc["temp"];
+          float hum = doc["hum"];
+
+          FirebaseJson humedad_enviar;
+          epoch_time_actual = getTime();
+          humedad_enviar.set("fecha", epoch_time_actual);
+          humedad_enviar.set("valor", hum);
+          Serial.print(temp);
+          Serial.print(hum);
+
+          Serial.print("Obteniendo datos de Firebase...");
+          String dts_humedad = GetDatosFirebase("/tierra/humedad");
+          Serial.print(dts_humedad);
+          String dts_temp = GetDatosFirebase("/tierra/temperatura");
+          Serial.print(dts_temp);
+        }
+        else
+        {
+          Serial.print("Error al parsear");
+          delay(3000);
+        }
+        Serial.flush();
+      }
     }
-  }
-  if (conect == true)
-  {
-    Serial.print("data");
+    if (conect == true)
+    {
+      Serial.print("data");
+    }
+    previous_milis = millis();
   }
 }
