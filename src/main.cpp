@@ -27,15 +27,15 @@ unsigned long getTime()
   return now;
 }
 
-void RegistrarDatosFirebase(FirebaseJson humedad)
+void RegistrarDatosFirebase(String path, FirebaseJson data)
 {
-  if (Firebase.pushJSON(fbdo_hum, "tierra/humedad", humedad))
+  if (Firebase.pushJSON(fbdo_hum, path, data))
   {
-    Serial.print("Humedad registrada");
+    Serial.print("registrado!");
   }
   else
   {
-    Serial.print("Error al registrar humedad");
+    Serial.print("Error al registrar");
   }
 }
 
@@ -148,18 +148,24 @@ void loop()
           float temp = doc["temp"];
           float hum = doc["hum"];
 
-          FirebaseJson humedad_enviar;
-          epoch_time_actual = getTime();
-          humedad_enviar.set("fecha", epoch_time_actual);
-          humedad_enviar.set("valor", hum);
-          Serial.print(temp);
-          Serial.print(hum);
-
           Serial.print("Obteniendo datos de Firebase...");
           String dts_humedad = GetDatosFirebase("/tierra/humedad");
           Serial.print(dts_humedad);
           String dts_temp = GetDatosFirebase("/tierra/temperatura");
           Serial.print(dts_temp);
+
+          FirebaseJson dato_enviar;
+          epoch_time_actual = getTime();
+          dato_enviar.set("fecha", epoch_time_actual);
+          dato_enviar.set("valor", hum);
+          Serial.print(temp);
+          Serial.print(hum);
+          RegistrarDatosFirebase("/tierra/humedad", dato_enviar);
+          dato_enviar.clear();
+          dato_enviar.set("fecha", epoch_time_actual);
+          dato_enviar.set("valor", temp);
+          RegistrarDatosFirebase("/tierra/temperatura", dato_enviar);
+          dato_enviar.clear();
         }
         else
         {
