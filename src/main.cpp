@@ -16,7 +16,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000);
 
 int epoch_time_actual;
 bool conect = false;
-unsigned long interval = 3000;
+unsigned long interval = 10000;
 unsigned long previous_milis;
 
 // Obtiene la fecha y hora
@@ -49,7 +49,7 @@ String GetDatosFirebase(String path)
 
   if (Firebase.RTDB.getJSON(&fbdo_hum, path, &query))
   {
-    Serial.print("Se mete al IF");
+    // Serial.print("Se mete al IF");
     FirebaseJson &json = fbdo_hum.jsonObject();
     // Serial.print(fbdo_hum.stringData());
     size_t len = json.iteratorBegin();
@@ -73,22 +73,22 @@ String GetDatosFirebase(String path)
     // Serializa array
     String arr_serialized;
     serializeJson(new_array, arr_serialized);
-    Serial.print(arr_serialized);
+    // Serial.print(arr_serialized);
     new_array.clear();
     DeserializationError error_des = deserializeJson(new_array, arr_serialized);
     if (error_des)
     {
-      Serial.print("Hay un error: ");
+      Serial.print("Error al deserealizar datos de Firebase: ");
       Serial.print(error_des.c_str());
     }
-    Serial.print(error_des.c_str());
+    // Serial.print(error_des.c_str());
     String dts_json = new_array[0];
     new_array.clear();
     return dts_json;
   }
   else
   {
-    Serial.print("Hay un error getJSON Firebase:c");
+    Serial.print("Hay un error al obtener datos de Firebase:c");
     delay(3000);
     Serial.print(fbdo_hum.errorReason());
     return "";
@@ -144,28 +144,53 @@ void loop()
         String tipo_error = error.c_str();
         if (tipo_error == "Ok")
         {
-          Serial.print("ok al deserealizar");
+          Serial.print("Ok al deserealizar datos sensores");
           float temp = doc["temp"];
-          float hum = doc["hum"];
+          int hum = doc["hum"];
+          doc.clear();
 
           Serial.print("Obteniendo datos de Firebase...");
           String dts_humedad = GetDatosFirebase("/tierra/humedad");
-          Serial.print(dts_humedad);
+          int fecha_hum = 0;
+          int valor_hum = 0;
+          FirebaseJson dato_enviar;
+          epoch_time_actual = getTime();
+          if (dts_humedad != "")
+          {
+            DeserializationError error_json = deserializeJson(doc, dts_humedad);
+            String tipo_error2 = error_json.c_str();
+            if (tipo_error2 == "Ok")
+            {
+              // Serial.print("Ok al deserealizar dts");
+              fecha_hum = doc["fecha"];
+              valor_hum = doc["valor"];
+              Serial.print("Humedad desde Firebase: ");
+              Serial.print(valor_hum);
+              Serial.print("Humedad desde Sensor: ");
+              Serial.print(hum);
+              if (valor_hum != hum)
+              {
+                // Serial.print("Se procede a registrar");
+                dato_enviar.set("fecha", epoch_time_actual);
+                dato_enviar.set("valor", hum);
+                RegistrarDatosFirebase("/tierra/humedad", dato_enviar);
+                dato_enviar.clear();
+              }
+              else
+              {
+                Serial.print("Valores iguales");
+              }
+            }
+          }
+
+          // Serial.print(dts_humedad);
           String dts_temp = GetDatosFirebase("/tierra/temperatura");
           Serial.print(dts_temp);
 
-          FirebaseJson dato_enviar;
-          epoch_time_actual = getTime();
-          dato_enviar.set("fecha", epoch_time_actual);
-          dato_enviar.set("valor", hum);
-          Serial.print(temp);
-          Serial.print(hum);
-          RegistrarDatosFirebase("/tierra/humedad", dato_enviar);
-          dato_enviar.clear();
-          dato_enviar.set("fecha", epoch_time_actual);
-          dato_enviar.set("valor", temp);
-          RegistrarDatosFirebase("/tierra/temperatura", dato_enviar);
-          dato_enviar.clear();
+          // dato_enviar.set("fecha", epoch_time_actual);
+          // dato_enviar.set("valor", temp);
+          // RegistrarDatosFirebase("/tierra/temperatura", dato_enviar);
+          // dato_enviar.clear();
         }
         else
         {
