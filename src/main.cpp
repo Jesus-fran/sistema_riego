@@ -120,20 +120,12 @@ void setup()
 void loop()
 {
   WiFiClient client;
-  
+
   unsigned long current_millis = millis(); // Tiempo actual
   // Comprueba si ya pasaron n segundos desde la ultima ejecución
   if ((unsigned long)(current_millis - previous_milis) >= interval)
   {
 
-    if (conect == false)
-    {
-      Serial.print("conectado");
-    }
-    else
-    {
-      Serial.print("data");
-    }
     if (Serial.available() > 0)
     {
       String data = Serial.readStringUntil('\n');
@@ -150,12 +142,12 @@ void loop()
         String tipo_error = error.c_str();
         if (tipo_error == "Ok")
         {
-          Serial.print("Ok al deserealizar datos sensores");
+          // Serial.print("Ok al deserealizar datos sensores");
           int temp = doc["temp"];
           int hum = doc["hum"];
           doc.clear();
 
-          Serial.print("Obteniendo datos de Firebase...");
+          // Serial.print("Obteniendo datos de Firebase...");
           String dts_humedad = GetDatosFirebase("/tierra/humedad");
           String dts_temp = GetDatosFirebase("/tierra/temperatura");
           // Serial.print(dts_temp);
@@ -174,10 +166,10 @@ void loop()
               // fecha_hum = doc["fecha"];
               valor_hum = doc["valor"];
               doc.clear();
-              Serial.print("Humedad desde Firebase: ");
-              Serial.print(valor_hum);
-              Serial.print("Humedad desde Sensor: ");
-              Serial.print(hum);
+              // Serial.print("Humedad desde Firebase: ");
+              // Serial.print(valor_hum);
+              // Serial.print("Humedad desde Sensor: ");
+              // Serial.print(hum);
               if (valor_hum != hum)
               {
                 // Serial.print("Se procede a registrar");
@@ -202,10 +194,10 @@ void loop()
               // Serial.print("Ok al deserealizar dts");
               valor_temp = doc["valor"];
               doc.clear();
-              Serial.print("Temperatura desde Firebase: ");
-              Serial.print(valor_temp);
-              Serial.print("Temperatura desde Sensor: ");
-              Serial.print(temp);
+              // Serial.print("Temperatura desde Firebase: ");
+              // Serial.print(valor_temp);
+              // Serial.print("Temperatura desde Sensor: ");
+              // Serial.print(temp);
               if (valor_temp != temp)
               {
                 // Serial.print("Se procede a registrar");
@@ -227,6 +219,17 @@ void loop()
           delay(3000);
         }
         Serial.flush();
+      }
+    }
+    else
+    {
+      if (conect == false)
+      {
+        Serial.print("conectado");
+      }
+      if (conect)
+      {
+        Serial.print("data");
       }
     }
     previous_milis = millis(); // Toma el tiempo de la ultima ejecución
