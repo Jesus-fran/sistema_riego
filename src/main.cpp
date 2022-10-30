@@ -16,7 +16,7 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000);
 
 int epoch_time_actual;
 bool conect = false;
-unsigned long interval = 10000;
+unsigned long interval = 30000;
 unsigned long previous_milis;
 
 // Obtiene la fecha y hora
@@ -120,13 +120,19 @@ void setup()
 void loop()
 {
   WiFiClient client;
-  unsigned long current_millis = millis();
+  
+  unsigned long current_millis = millis(); // Tiempo actual
+  // Comprueba si ya pasaron n segundos desde la ultima ejecución
   if ((unsigned long)(current_millis - previous_milis) >= interval)
   {
 
     if (conect == false)
     {
       Serial.print("conectado");
+    }
+    else
+    {
+      Serial.print("data");
     }
     if (Serial.available() > 0)
     {
@@ -223,10 +229,6 @@ void loop()
         Serial.flush();
       }
     }
-    if (conect == true)
-    {
-      Serial.print("data");
-    }
-    previous_milis = millis();
+    previous_milis = millis(); // Toma el tiempo de la ultima ejecución
   }
 }
