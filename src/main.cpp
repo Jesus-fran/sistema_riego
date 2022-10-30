@@ -12,12 +12,14 @@
 FirebaseData fbdo_hum;
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -18000);
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -21600);
 
 int epoch_time_actual;
 bool conect = false;
 unsigned long interval = 30000;
+unsigned long interval_valvula = 10000;
 unsigned long previous_milis;
+unsigned long previous_milis_valvula;
 
 // Obtiene la fecha y hora
 unsigned long getTime()
@@ -97,6 +99,22 @@ String GetDatosFirebase(String path)
   query.clear();
 }
 
+String GetDatosValvula()
+{
+  if (Firebase.RTDB.getJSON(&fbdo_hum, "/actuadores/valvula"))
+  {
+    String json = fbdo_hum.jsonString();
+    return json;
+  }
+  else
+  {
+    Serial.print("Hay un error al obtener datos de valvula c");
+    delay(3000);
+    Serial.print(fbdo_hum.errorReason());
+    return "";
+  }
+}
+
 void setup()
 {
   Serial.begin(57600);
@@ -115,6 +133,7 @@ void setup()
   Serial.print(WiFi.localIP());
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   previous_milis = millis();
+  previous_milis_valvula = previous_milis;
 }
 
 void loop()
@@ -232,5 +251,77 @@ void loop()
       }
     }
     previous_milis = millis(); // Toma el tiempo de la ultima ejecución
+  }
+
+  if ((current_millis - previous_milis_valvula) >= interval_valvula)
+  {
+    epoch_time_actual = getTime();
+    String datos_valvula = GetDatosValvula();
+    DynamicJsonDocument des_valvula(1024);
+    DeserializationError error_des = deserializeJson(des_valvula, datos_valvula);
+    if (error_des)
+    {
+      Serial.print("Error al deserealizar datos de Valvula: ");
+      Serial.print(error_des.c_str());
+    }
+    else
+    {
+      bool activo = des_valvula["activo"];
+      int fecha_hora = des_valvula["fecha_hora"];
+      int time_faltante = fecha_hora - epoch_time_actual;
+      Serial.print(" ");
+      // Serial.print(epoch_time_actual);
+      if (fecha_hora != 0 && epoch_time_actual >= fecha_hora && activo == false && time_faltante >= -180)
+      {
+        Serial.print(time_faltante);
+        FirebaseJson updateData;
+        updateData.set("activo", true);
+        updateData.set("fecha_hora", 0);
+
+        if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
+        {
+          Serial.print("registrado activo valvula!");
+        }
+        else
+        {
+          Serial.print("Error al registrar activo valvula");
+        }
+        Serial.print("Enciende valvula");
+        // Aqui todo el proceso para encender la valvula y regar
+        //
+        delay(3000);
+        updateData.clear();
+        updateData.set("activo", false);
+        if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
+        {
+          Serial.print("registrado apagado valvula!");
+        }
+        else
+        {
+          Serial.print("Error al registrar apagado valvula");
+        }
+      }
+      else
+      {
+        if (fecha_hora == 0)
+        {
+          Serial.print("No hay temporizador activo");
+        }
+        else if (time_faltante <= -180)
+        {
+          Serial.print("Ya pasó mas de 3 min");
+        }
+        else if (activo)
+        {
+          Serial.print("Ya está activo la valvula!");
+        }
+        else
+        {
+          Serial.print("- Faltan: ");
+          Serial.print(time_faltante);
+        }
+      }
+    }
+    previous_milis_valvula = millis();
   }
 }
