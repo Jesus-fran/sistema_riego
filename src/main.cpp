@@ -119,7 +119,6 @@ void setup()
 
 void loop()
 {
-  WiFiClient client;
 
   unsigned long current_millis = millis(); // Tiempo actual
   // Comprueba si ya pasaron n segundos desde la ultima ejecución
