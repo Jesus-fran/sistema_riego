@@ -18,8 +18,11 @@ int epoch_time_actual;
 bool conect = false;
 unsigned long interval = 30000;
 unsigned long interval_valvula = 10000;
+unsigned long interval_leer = 1000;
 unsigned long previous_milis;
 unsigned long previous_milis_valvula;
+unsigned long previous_milis_leer;
+String data = "";
 
 // Obtiene la fecha y hora
 unsigned long getTime()
@@ -115,6 +118,21 @@ String GetDatosValvula()
   }
 }
 
+void ApagarValvula()
+{
+  FirebaseJson updateData;
+  updateData.set("activo", false);
+  if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
+  {
+    Serial.print("registrado apagado valvula!");
+    updateData.clear();
+  }
+  else
+  {
+    Serial.print("Error al registrar apagado valvula");
+  }
+}
+
 void setup()
 {
   Serial.begin(57600);
@@ -134,6 +152,7 @@ void setup()
   Firebase.begin(FIREBASE_HOST, FIREBASE_AUTH);
   previous_milis = millis();
   previous_milis_valvula = previous_milis;
+  previous_milis_leer = previous_milis;
 }
 
 void loop()
@@ -143,11 +162,10 @@ void loop()
   // Comprueba si ya pasaron n segundos desde la ultima ejecución
   if ((unsigned long)(current_millis - previous_milis) >= interval)
   {
-
-    if (Serial.available() > 0)
+    // Serial.print("Estoy dentro");
+    if (data != "")
     {
-      String data = Serial.readStringUntil('\n');
-      Serial.flush();
+
       if (data == "como estas")
       {
         conect = true;
@@ -236,8 +254,8 @@ void loop()
           Serial.print("Error al parsear");
           delay(3000);
         }
-        Serial.flush();
       }
+      data = "";
     }
     else
     {
@@ -289,23 +307,22 @@ void loop()
     previous_milis_valvula = millis();
   }
 
-  // if (Serial.available() > 0)
-  // {
-  //   String data = Serial.readStringUntil('\n');
-  //   Serial.flush();
-  //   if (data == "OFFVAL")
-  //   {
-  //     FirebaseJson updateData;
-  //     updateData.set("activo", false);
-  //     if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
-  //     {
-  //       Serial.print("registrado apagado valvula!");
-  //       updateData.clear();
-  //     }
-  //     else
-  //     {
-  //       Serial.print("Error al registrar apagado valvula");
-  //     }
-  //   }
-  // }
+  if ((current_millis - previous_milis_leer) >= interval_leer)
+  {
+    if (Serial.available() > 0)
+    {
+      String datos_serial = Serial.readStringUntil('\n');
+      Serial.flush();
+
+      if (datos_serial == "OFFVAL")
+      {
+        ApagarValvula();
+      }
+      else
+      {
+        data = datos_serial;
+      }
+    }
+    previous_milis_leer = millis();
+  }
 }
