@@ -12,7 +12,7 @@
 FirebaseData fbdo_hum;
 
 WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -21600);
+NTPClient timeClient(ntpUDP, "pool.ntp.org");
 
 int epoch_time_actual;
 bool conect = false;
@@ -41,6 +41,7 @@ void RegistrarDatosFirebase(String path, FirebaseJson data)
   else
   {
     Serial.print("Error al registrar");
+    Serial.print(fbdo_hum.errorReason());
   }
 }
 
@@ -104,7 +105,7 @@ String GetDatosFirebase(String path)
 
 String GetDatosValvula()
 {
-  if (Firebase.RTDB.getJSON(&fbdo_hum, "/actuadores/valvula"))
+  if (Firebase.RTDB.getJSON(&fbdo_hum, "/actuadores/valvula/accion"))
   {
     String json = fbdo_hum.jsonString();
     return json;
@@ -118,18 +119,34 @@ String GetDatosValvula()
   }
 }
 
-void ApagarValvula()
-{
+void LimpiarActivadorValvula(){
   FirebaseJson updateData;
   updateData.set("activo", false);
-  if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
-  {
-    Serial.print("registrado apagado valvula!");
+  updateData.set("fecha_hora", 0);
+  if(Firebase.updateNode(fbdo_hum, "/actuadores/valvula/accion", updateData)){
+    // Serial.print("registrado limpiar activador!");
     updateData.clear();
   }
   else
   {
-    Serial.print("Error al registrar apagado valvula");
+    Serial.print("Error al registrar limp activador");
+    Serial.print(fbdo_hum.errorReason());
+  }
+}
+
+boolean RegEncendidoApagadoValvula(FirebaseJson data)
+{
+     
+  if (Firebase.pushJSON(fbdo_hum, "/actuadores/valvula/historial", data))
+  {
+    // Serial.print("registrado valvula!");
+    return true;
+  }
+  else
+  {
+    Serial.print("Error al registrar valvula");
+    Serial.print(fbdo_hum.errorReason());
+    return false;
   }
 }
 
@@ -274,36 +291,47 @@ void loop()
   if ((current_millis - previous_milis_valvula) >= interval_valvula)
   {
     epoch_time_actual = getTime();
+    // Serial.print(epoch_time_actual);
     String datos_valvula = GetDatosValvula();
-    DynamicJsonDocument des_valvula(1024);
-    DeserializationError error_des = deserializeJson(des_valvula, datos_valvula);
-    if (error_des)
+    if (datos_valvula != "")
     {
-      Serial.print("Error al deserealizar datos de Valvula: ");
-      Serial.print(error_des.c_str());
-    }
-    else
-    {
-      bool activo = des_valvula["activo"];
-      int fecha_hora = des_valvula["fecha_hora"];
-      int time_faltante = fecha_hora - epoch_time_actual;
-      if (fecha_hora != 0 && epoch_time_actual >= fecha_hora && activo == false && time_faltante >= -180)
+      DynamicJsonDocument des_valvula(1024);
+      DeserializationError error_des = deserializeJson(des_valvula, datos_valvula);
+      if (error_des)
       {
-        FirebaseJson updateData;
-        updateData.set("activo", true);
-        updateData.set("fecha_hora", 0);
-
-        if (Firebase.updateNode(fbdo_hum, "/actuadores/valvula", updateData))
+        Serial.print("Error al deserealizar datos de Valvula: ");
+        Serial.print(error_des.c_str());
+      }
+      else
+      {
+        bool activo = des_valvula["activo"];
+        int fecha_hora = des_valvula["fecha_hora"];
+        int time_faltante = fecha_hora - epoch_time_actual;
+        
+        //Esperar hasta que la fecha_actual llegue o pase unos segundos a la fecha_hora dada
+        //si la fecha_hora != 0 y fecha_actual >= fecha_hora y activo = true y fecha_actual - fecha_hora >= 30 segundos, entonces:
+        
+        if (fecha_hora != 0 && epoch_time_actual >= fecha_hora && activo == true && time_faltante >= -30)
         {
-          Serial.print("ONVAL");
+          FirebaseJson updateData;
+          updateData.set("activo", true);
+          updateData.set("fecha_hora", epoch_time_actual);
+          // Registrar encendido de valvula
+          bool status = RegEncendidoApagadoValvula(updateData);
           updateData.clear();
-        }
-        else
-        {
-          Serial.print("Error al registrar activo valvula");
+          if (status)
+          {
+            delay(3000);
+            Serial.print("ONVAL");
+            LimpiarActivadorValvula();
+          }
         }
       }
+    }else{
+      Serial.print("ERROR: No hay datos para accionar la valvula");
     }
+    
+    
     previous_milis_valvula = millis();
   }
 
@@ -316,7 +344,14 @@ void loop()
 
       if (datos_serial == "OFFVAL")
       {
-        ApagarValvula();
+        FirebaseJson dato_enviar;
+        epoch_time_actual = getTime();
+
+        dato_enviar.add("activo", false);
+        dato_enviar.add("fecha_hora", epoch_time_actual);
+
+        RegEncendidoApagadoValvula(dato_enviar);
+        dato_enviar.clear();
       }
       else
       {
